@@ -14,10 +14,20 @@
           <p class="eyebrow">Notas</p>
           <h1>Noty</h1>
         </div>
-        <button id="logoutButton" class="icon-button" type="button" title="Cerrar sesion">Salir</button>
+        <button id="logoutButton" class="icon-button" type="button" title="Cerrar sesion">🚪 Salir</button>
       </div>
 
-      <button id="newNoteButton" class="button primary full-width" type="button">Nueva nota</button>
+      <button id="newNoteButton" class="button primary full-width" type="button">📄 Nueva nota</button>
+
+      <div class="search-box">
+        <input id="searchNotes" type="text" placeholder="Buscar notas..." aria-label="Buscar notas">
+      </div>
+
+      <div class="selection-toolbar">
+        <button id="selectModeButton" class="button secondary" type="button" title="Elegir varias notas para eliminarlas juntas">☑️ Seleccionar</button>
+        <button id="bulkDeleteButton" class="button danger" type="button" hidden>🗑️ Eliminar (<span id="selectedCount">0</span>)</button>
+      </div>
+
       <div id="notesList" class="notes-list" aria-label="Lista de notas"></div>
     </aside>
 
@@ -25,21 +35,21 @@
       <div class="editor-topbar">
         <input id="noteTitle" class="title-input" type="text" placeholder="Titulo de la nota">
         <div class="editor-actions">
-          <button id="saveNoteButton" class="button primary" type="button" onclick="window.NotyNotes.saveNote()">Guardar</button>
+          <button id="saveNoteButton" class="button primary" type="button" onclick="window.NotyNotes.saveNote()">✏️ Guardar</button>
           <button id="deleteNoteButton" class="button danger" type="button" onclick="window.NotyNotes.deleteNote()">Eliminar</button>
           <button id="exportPdfButton" class="button secondary" type="button" onclick="window.NotyNotes.exportNoteToPdf()">Exportar PDF</button>
         </div>
       </div>
 
       <div class="toolbar" aria-label="Barra de formato">
-        <button data-command="formatBlock" data-value="h1" type="button">H1</button>
-        <button data-command="formatBlock" data-value="h2" type="button">H2</button>
-        <button data-command="formatBlock" data-value="h3" type="button">H3</button>
-        <button data-command="bold" type="button">B</button>
-        <button data-command="italic" type="button">I</button>
-        <button data-command="insertUnorderedList" type="button">Lista</button>
-        <button data-command="insertOrderedList" type="button">1. Lista</button>
-        <button data-command="formatBlock" data-value="p" type="button">Parrafo</button>
+        <button data-command="formatBlock" data-value="h1" type="button" title="Encabezado grande">H1</button>
+        <button data-command="formatBlock" data-value="h2" type="button" title="Encabezado mediano">H2</button>
+        <button data-command="formatBlock" data-value="h3" type="button" title="Encabezado pequeño">H3</button>
+        <button data-command="bold" type="button" title="Negrita">B</button>
+        <button data-command="italic" type="button" title="Cursiva">I</button>
+        <button data-command="insertUnorderedList" type="button" title="Lista con viñetas">Lista</button>
+        <button data-command="insertOrderedList" type="button" title="Lista numerada">1. Lista</button>
+        <button data-command="formatBlock" data-value="p" type="button" title="Párrafo normal">Parrafo</button>
       </div>
 
       <section id="noteEditor" class="note-editor" contenteditable="true" aria-label="Editor de contenido">
@@ -50,231 +60,7 @@
     </main>
   </div>
 
-  <script>
-    const API_BASE_URL = window.location.port === "3000"
-      ? "/api"
-      : "http://localhost:3000/api";
-    const notesList = document.querySelector("#notesList");
-    const noteTitle = document.querySelector("#noteTitle");
-    const noteEditor = document.querySelector("#noteEditor");
-    const messageElement = document.querySelector("#message");
-    const newNoteButton = document.querySelector("#newNoteButton");
-    const logoutButton = document.querySelector("#logoutButton");
-    const toolbar = document.querySelector(".toolbar");
-
-    let notes = [];
-    let selectedNoteId = null;
-
-    function showMessage(text, type = "info") {
-      messageElement.textContent = text;
-      messageElement.className = `message ${type}`;
-    }
-
-    function getToken() {
-      return localStorage.getItem("noty_token");
-    }
-
-    function removeToken() {
-      localStorage.removeItem("noty_token");
-      localStorage.removeItem("noty_user");
-    }
-
-    async function apiRequest(path, options = {}) {
-      const token = getToken();
-
-      if (!token) {
-        window.location.href = "login.html";
-        throw new Error("Debes iniciar sesion.");
-      }
-
-      let response;
-
-      try {
-        response = await fetch(`${API_BASE_URL}${path}`, {
-          ...options,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            ...(options.headers || {})
-          }
-        });
-      } catch (error) {
-        throw new Error("No se pudo conectar con el backend en http://localhost:3000.");
-      }
-
-      const responseText = await response.text();
-      let data;
-
-      try {
-        data = JSON.parse(responseText);
-      } catch (error) {
-        throw new Error("La API no devolvio JSON. Abre la app desde http://localhost:3000/login.html y verifica que el backend este activo.");
-      }
-
-      if (!response.ok) {
-        throw new Error(data.message || "Error inesperado en la API.");
-      }
-
-      return data;
-    }
-
-    function setEditor(note) {
-      selectedNoteId = note ? note.id : null;
-      noteTitle.value = note ? note.title : "";
-      noteEditor.innerHTML = note ? note.content : "<p>Escribe tu nota aqui...</p>";
-      renderNotesList();
-    }
-
-    function renderNotesList() {
-      notesList.innerHTML = "";
-
-      if (notes.length === 0) {
-        notesList.innerHTML = '<p class="empty-state">No hay notas todavia.</p>';
-        return;
-      }
-
-      notes.forEach((note) => {
-        const button = document.createElement("button");
-        button.className = note.id === selectedNoteId ? "note-item active" : "note-item";
-        button.type = "button";
-
-        const title = document.createElement("strong");
-        title.textContent = note.title;
-
-        const date = document.createElement("span");
-        date.textContent = new Date(note.updated_at).toLocaleString();
-
-        button.append(title, date);
-        button.addEventListener("click", () => setEditor(note));
-        notesList.appendChild(button);
-      });
-    }
-
-    async function loadNotes() {
-      try {
-        notes = await apiRequest("/notes");
-        setEditor(notes[0] || null);
-        showMessage("Editor listo.", "success");
-      } catch (error) {
-        showMessage(error.message, "error");
-      }
-    }
-
-    async function saveNote() {
-      showMessage("Guardando nota...");
-
-      const title = noteTitle.value.trim();
-      const content = noteEditor.innerHTML.trim();
-
-      if (!title || !content) {
-        showMessage("El titulo y el contenido son obligatorios.", "error");
-        return;
-      }
-
-      try {
-        if (selectedNoteId) {
-          await apiRequest(`/notes/${selectedNoteId}`, {
-            method: "PUT",
-            body: JSON.stringify({ title, content })
-          });
-          showMessage("Nota actualizada correctamente.", "success");
-        } else {
-          const data = await apiRequest("/notes", {
-            method: "POST",
-            body: JSON.stringify({ title, content })
-          });
-          selectedNoteId = data.note.id;
-          showMessage("Nota creada correctamente.", "success");
-        }
-
-        await loadNotes();
-      } catch (error) {
-        showMessage(error.message, "error");
-      }
-    }
-
-    async function deleteNote() {
-      if (!selectedNoteId) {
-        showMessage("Selecciona una nota antes de eliminar.", "error");
-        return;
-      }
-
-      if (!window.confirm("Quieres eliminar esta nota?")) {
-        return;
-      }
-
-      try {
-        await apiRequest(`/notes/${selectedNoteId}`, { method: "DELETE" });
-        showMessage("Nota eliminada correctamente.", "success");
-        await loadNotes();
-      } catch (error) {
-        showMessage(error.message, "error");
-      }
-    }
-
-    function exportNoteToPdf() {
-      if (!noteTitle.value.trim()) {
-        showMessage("Escribe un titulo antes de exportar.", "error");
-        return;
-      }
-
-      const printWindow = window.open("", "_blank");
-
-      if (!printWindow) {
-        showMessage("El navegador bloqueo la ventana de impresion.", "error");
-        return;
-      }
-
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html lang="es">
-        <head>
-          <meta charset="UTF-8">
-          <title>${noteTitle.value}</title>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; margin: 32px; }
-          </style>
-        </head>
-        <body>
-          <h1>${noteTitle.value}</h1>
-          <div>${noteEditor.innerHTML}</div>
-        </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.print();
-      showMessage("Usa Guardar como PDF en la ventana de impresion.", "success");
-    }
-
-    window.NotyNotes = {
-      saveNote,
-      deleteNote,
-      exportNoteToPdf
-    };
-
-    toolbar.addEventListener("click", (event) => {
-      const button = event.target.closest("button");
-
-      if (!button) {
-        return;
-      }
-
-      document.execCommand(button.dataset.command, false, button.dataset.value || null);
-      noteEditor.focus();
-    });
-
-    newNoteButton.addEventListener("click", () => setEditor(null));
-
-    logoutButton.addEventListener("click", () => {
-      removeToken();
-      window.location.href = "login.html";
-    });
-
-    if (!getToken()) {
-      window.location.href = "login.html";
-    } else {
-      loadNotes();
-    }
-  </script>
+  <script src="js/api.js?v=1"></script>
+  <script src="js/notes.js?v=1"></script>
 </body>
 </html>
