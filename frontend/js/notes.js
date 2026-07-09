@@ -10,7 +10,6 @@ const noteEditor = document.querySelector("#noteEditor");
 const messageElement = document.querySelector("#message");
 const newNoteButton = document.querySelector("#newNoteButton");
 const saveNoteButton = document.querySelector("#saveNoteButton");
-const deleteNoteButton = document.querySelector("#deleteNoteButton");
 const exportPdfButton = document.querySelector("#exportPdfButton");
 const logoutButton = document.querySelector("#logoutButton");
 const toolbar = document.querySelector(".toolbar");
@@ -79,7 +78,6 @@ function getVisibleNotes() {
 
 window.NotyNotes = {
   saveNote: () => saveNote(),
-  deleteNote: () => deleteNote(),
   exportNoteToPdf: () => exportNoteToPdf()
 };
 
@@ -278,29 +276,6 @@ async function saveNote() {
       showMessage("Nota creada correctamente.", "success");
     }
 
-    await loadNotes();
-  } catch (error) {
-    showMessage(error.message, "error");
-  }
-}
-
-async function deleteNote() {
-  if (!selectedNoteId) {
-    showMessage("Selecciona una nota antes de eliminar.", "error");
-    return;
-  }
-
-  const confirmed = window.confirm("Quieres eliminar esta nota?");
-
-  if (!confirmed) {
-    return;
-  }
-
-  try {
-    await apiRequest(`/notes/${selectedNoteId}`, {
-      method: "DELETE"
-    });
-    showMessage("Nota eliminada correctamente.", "success");
     await loadNotes();
   } catch (error) {
     showMessage(error.message, "error");

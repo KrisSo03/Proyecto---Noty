@@ -36,20 +36,42 @@
         <input id="noteTitle" class="title-input" type="text" placeholder="Titulo de la nota">
         <div class="editor-actions">
           <button id="saveNoteButton" class="button primary" type="button" onclick="window.NotyNotes.saveNote()">✏️ Guardar</button>
-          <button id="deleteNoteButton" class="button danger" type="button" onclick="window.NotyNotes.deleteNote()">Eliminar</button>
           <button id="exportPdfButton" class="button secondary" type="button" onclick="window.NotyNotes.exportNoteToPdf()">Exportar PDF</button>
         </div>
       </div>
 
       <div class="toolbar" aria-label="Barra de formato">
-        <button data-command="formatBlock" data-value="h1" type="button" title="Encabezado grande">H1</button>
-        <button data-command="formatBlock" data-value="h2" type="button" title="Encabezado mediano">H2</button>
-        <button data-command="formatBlock" data-value="h3" type="button" title="Encabezado pequeño">H3</button>
-        <button data-command="bold" type="button" title="Negrita">B</button>
-        <button data-command="italic" type="button" title="Cursiva">I</button>
-        <button data-command="insertUnorderedList" type="button" title="Lista con viñetas">Lista</button>
-        <button data-command="insertOrderedList" type="button" title="Lista numerada">1. Lista</button>
-        <button data-command="formatBlock" data-value="p" type="button" title="Párrafo normal">Parrafo</button>
+        <fieldset class="toolbar-group">
+          <legend>Encabezados</legend>
+          <div class="toolbar-group-buttons">
+            <button data-command="formatBlock" data-value="h1" type="button" title="Encabezado grande">H1</button>
+            <button data-command="formatBlock" data-value="h2" type="button" title="Encabezado mediano">H2</button>
+            <button data-command="formatBlock" data-value="h3" type="button" title="Encabezado pequeño">H3</button>
+          </div>
+        </fieldset>
+
+        <fieldset class="toolbar-group">
+          <legend>Estilo</legend>
+          <div class="toolbar-group-buttons">
+            <button data-command="bold" type="button" title="Negrita">B</button>
+            <button data-command="italic" type="button" title="Cursiva">I</button>
+          </div>
+        </fieldset>
+
+        <fieldset class="toolbar-group">
+          <legend>Listas</legend>
+          <div class="toolbar-group-buttons">
+            <button data-command="insertUnorderedList" type="button" title="Lista con viñetas">Lista</button>
+            <button data-command="insertOrderedList" type="button" title="Lista numerada">1. Lista</button>
+          </div>
+        </fieldset>
+
+        <fieldset class="toolbar-group">
+          <legend>Formato</legend>
+          <div class="toolbar-group-buttons">
+            <button data-command="formatBlock" data-value="p" type="button" title="Párrafo normal">Parrafo</button>
+          </div>
+        </fieldset>
       </div>
 
       <section id="noteEditor" class="note-editor" contenteditable="true" aria-label="Editor de contenido">

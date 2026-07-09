@@ -86,6 +86,10 @@ a {
   gap: 10px;
 }
 
+.button[hidden] {
+  display: none;
+}
+
 .button,
 .toolbar button,
 .icon-button {
@@ -414,11 +418,32 @@ a {
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 14px;
   background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+
+.toolbar-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.toolbar-group legend {
+  padding: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.toolbar-group-buttons {
+  display: flex;
+  gap: 8px;
 }
 
 .toolbar button {
