@@ -17,12 +17,14 @@ const searchNotesInput = document.querySelector("#searchNotes");
 const selectModeButton = document.querySelector("#selectModeButton");
 const bulkDeleteButton = document.querySelector("#bulkDeleteButton");
 const selectedCountEl = document.querySelector("#selectedCount");
+const unsavedIndicator = document.querySelector("#unsavedIndicator");
 
 let notes = [];
 let selectedNoteId = null;
 let searchTerm = "";
 let selectionMode = false;
 let selectedForDeletion = new Set();
+let isDirty = false;
 
 const FAVORITES_KEY = "noty_favorite_notes";
 
@@ -95,10 +97,33 @@ function protectDashboard() {
   return true;
 }
 
+function updateEditorPlaceholderState() {
+  const isEmpty = noteEditor.textContent.trim() === "";
+  noteEditor.classList.toggle("is-empty", isEmpty);
+}
+
+function setFieldValidity(field, isValid) {
+  field.classList.toggle("invalid", !isValid);
+}
+
+function markDirty() {
+  isDirty = true;
+  unsavedIndicator.hidden = false;
+}
+
+function markClean() {
+  isDirty = false;
+  unsavedIndicator.hidden = true;
+}
+
 function setEditor(note) {
   selectedNoteId = note ? note.id : null;
   noteTitle.value = note ? note.title : "";
-  noteEditor.innerHTML = note ? note.content : "<p>Escribe tu nota aqui...</p>";
+  noteEditor.innerHTML = note ? note.content : "";
+  setFieldValidity(noteTitle, true);
+  setFieldValidity(noteEditor, true);
+  updateEditorPlaceholderState();
+  markClean();
   renderNotesList();
 }
 
@@ -250,15 +275,24 @@ async function loadNotes() {
 }
 
 async function saveNote() {
-  showMessage("Guardando nota...");
-
   const title = noteTitle.value.trim();
   const content = noteEditor.innerHTML.trim();
+  const hasContent = noteEditor.textContent.trim().length > 0;
 
-  if (!title || !content) {
+  setFieldValidity(noteTitle, Boolean(title));
+  setFieldValidity(noteEditor, hasContent);
+
+  if (!title || !hasContent) {
     showMessage("El titulo y el contenido son obligatorios.", "error");
+    (title ? noteEditor : noteTitle).focus();
     return;
   }
+
+  const wasCreating = !selectedNoteId;
+  const originalLabel = saveNoteButton.textContent;
+  saveNoteButton.disabled = true;
+  saveNoteButton.textContent = "⏳ Guardando...";
+  showMessage("Guardando nota...");
 
   try {
     if (selectedNoteId) {
@@ -266,19 +300,23 @@ async function saveNote() {
         method: "PUT",
         body: JSON.stringify({ title, content })
       });
-      showMessage("Nota actualizada correctamente.", "success");
+      showMessage("✅ Nota actualizada correctamente.", "success");
     } else {
       const data = await apiRequest("/notes", {
         method: "POST",
         body: JSON.stringify({ title, content })
       });
       selectedNoteId = data.note.id;
-      showMessage("Nota creada correctamente.", "success");
+      showMessage(wasCreating ? "✅ Nota creada correctamente." : "✅ Nota actualizada correctamente.", "success");
     }
 
+    markClean();
     await loadNotes();
   } catch (error) {
     showMessage(error.message, "error");
+  } finally {
+    saveNoteButton.disabled = false;
+    saveNoteButton.textContent = originalLabel;
   }
 }
 
@@ -369,11 +407,38 @@ selectModeButton.addEventListener("click", () => toggleSelectionMode());
 
 bulkDeleteButton.addEventListener("click", () => bulkDeleteSelectedNotes());
 
-newNoteButton.addEventListener("click", () => setEditor(null));
+newNoteButton.addEventListener("click", () => {
+  setEditor(null);
+  noteTitle.focus();
+});
 
 logoutButton.addEventListener("click", () => {
   removeToken();
   window.location.href = "login.html";
+});
+
+noteTitle.addEventListener("input", () => {
+  markDirty();
+  if (noteTitle.value.trim()) {
+    setFieldValidity(noteTitle, true);
+  }
+});
+
+noteEditor.addEventListener("input", () => {
+  markDirty();
+  updateEditorPlaceholderState();
+  if (noteEditor.textContent.trim()) {
+    setFieldValidity(noteEditor, true);
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  const isSaveShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s";
+
+  if (isSaveShortcut) {
+    event.preventDefault();
+    saveNote();
+  }
 });
 
 if (protectDashboard()) {

@@ -33,9 +33,12 @@
 
     <main class="editor-panel">
       <div class="editor-topbar">
-        <input id="noteTitle" class="title-input" type="text" placeholder="Titulo de la nota">
+        <div class="title-field">
+          <input id="noteTitle" class="title-input" type="text" placeholder="Titulo de la nota" autocomplete="off">
+          <span id="unsavedIndicator" class="unsaved-indicator" hidden>● Cambios sin guardar</span>
+        </div>
         <div class="editor-actions">
-          <button id="saveNoteButton" class="button primary" type="button" onclick="window.NotyNotes.saveNote()">✏️ Guardar</button>
+          <button id="saveNoteButton" class="button primary" type="button" title="Guardar (Ctrl/Cmd + S)" onclick="window.NotyNotes.saveNote()">✏️ Guardar</button>
           <button id="exportPdfButton" class="button secondary" type="button" onclick="window.NotyNotes.exportNoteToPdf()">Exportar PDF</button>
         </div>
       </div>
@@ -74,9 +77,7 @@
         </fieldset>
       </div>
 
-      <section id="noteEditor" class="note-editor" contenteditable="true" aria-label="Editor de contenido">
-        <p>Escribe tu nota aqui...</p>
-      </section>
+      <section id="noteEditor" class="note-editor is-empty" contenteditable="true" aria-label="Editor de contenido" data-placeholder="Escribe tu nota aqui..."></section>
 
       <p id="message" class="message success" role="status">Dashboard v4 cargado.</p>
     </main>
