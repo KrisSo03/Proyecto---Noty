@@ -179,6 +179,7 @@ a {
   color: var(--text);
   background: #ffffff;
   font: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .form input:focus,
@@ -188,24 +189,40 @@ a {
   border-color: var(--primary);
 }
 
+.title-input.invalid,
+.note-editor.invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+
 .auth-switch {
   margin: 18px 0 0;
   color: var(--muted);
 }
 
 .message {
+  display: inline-flex;
+  align-items: center;
   min-height: 22px;
   margin: 12px 0 0;
+  padding: 0;
   color: var(--muted);
   font-weight: 700;
+  transition: background 0.2s ease;
 }
 
 .message.error {
+  padding: 6px 12px;
   color: var(--danger);
+  background: #fdecea;
+  border-radius: 8px;
 }
 
 .message.success {
+  padding: 6px 12px;
   color: var(--success);
+  background: #e6f4ea;
+  border-radius: 8px;
 }
 
 .app-shell {
@@ -230,6 +247,10 @@ a {
   justify-content: space-between;
   gap: 14px;
   margin-bottom: var(--spacing-md);
+}
+
+.editor-topbar {
+  align-items: flex-start;
 }
 
 .sidebar .eyebrow {
@@ -409,10 +430,25 @@ a {
   padding: 24px;
 }
 
-.title-input {
+.title-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
   max-width: 520px;
-  font-size: 1.05rem;
+}
+
+.title-input {
+  max-width: none;
+  min-height: 48px;
+  font-size: 1.1rem;
   font-weight: 800;
+}
+
+.unsaved-indicator {
+  color: #b45309;
+  font-size: 0.76rem;
+  font-weight: 700;
 }
 
 .toolbar {
@@ -463,6 +499,12 @@ a {
   border: 1px solid var(--line);
   border-radius: 8px;
   line-height: 1.65;
+}
+
+.note-editor.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  pointer-events: none;
 }
 
 .note-editor h1,
