@@ -19,6 +19,7 @@ const bulkDeleteButton = document.querySelector("#bulkDeleteButton");
 const selectedCountEl = document.querySelector("#selectedCount");
 const unsavedIndicator = document.querySelector("#unsavedIndicator");
 const noteStatsEl = document.querySelector("#noteStats");
+const noteTagsInput = document.querySelector("#noteTagsInput");
 
 const AUTOSAVE_DELAY_MS = 2000;
 const TOOLBAR_STATE_COMMANDS = ["bold", "italic", "insertUnorderedList", "insertOrderedList"];
@@ -33,6 +34,54 @@ let isSaving = false;
 let autosaveTimer = null;
 
 const FAVORITES_KEY = "noty_favorite_notes";
+const TAGS_KEY = "noty_note_tags";
+
+function getAllTags() {
+  try {
+    return JSON.parse(localStorage.getItem(TAGS_KEY)) || {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function getTagsForNote(noteId) {
+  return getAllTags()[noteId] || [];
+}
+
+function parseTagsInput(value) {
+  const seen = new Set();
+  const tags = [];
+
+  value.split(",").forEach((rawTag) => {
+    const tag = rawTag.trim();
+    const key = tag.toLowerCase();
+
+    if (tag && !seen.has(key)) {
+      seen.add(key);
+      tags.push(tag);
+    }
+  });
+
+  return tags;
+}
+
+function setTagsForNote(noteId, tags) {
+  const all = getAllTags();
+
+  if (tags.length === 0) {
+    delete all[noteId];
+  } else {
+    all[noteId] = tags;
+  }
+
+  localStorage.setItem(TAGS_KEY, JSON.stringify(all));
+}
+
+function removeTagsForNote(noteId) {
+  const all = getAllTags();
+  delete all[noteId];
+  localStorage.setItem(TAGS_KEY, JSON.stringify(all));
+}
 
 function getFavoriteIds() {
   try {
@@ -74,7 +123,8 @@ function getVisibleNotes() {
 
   const filtered = term
     ? notes.filter((note) => note.title.toLowerCase().includes(term)
-        || getNotePreview(note.content).toLowerCase().includes(term))
+        || getNotePreview(note.content).toLowerCase().includes(term)
+        || getTagsForNote(note.id).some((tag) => tag.toLowerCase().includes(term)))
     : notes;
 
   return [...filtered].sort((a, b) => {
@@ -180,6 +230,7 @@ function setEditor(note) {
   selectedNoteId = note ? note.id : null;
   noteTitle.value = note ? note.title : "";
   noteEditor.innerHTML = note ? note.content : "";
+  noteTagsInput.value = note ? getTagsForNote(note.id).join(", ") : "";
   setFieldValidity(noteTitle, true);
   setFieldValidity(noteEditor, true);
   updateEditorPlaceholderState();
@@ -253,7 +304,22 @@ function renderNotesList() {
     date.className = "note-date";
     date.textContent = new Date(note.updated_at).toLocaleString();
 
-    button.append(header, preview, date);
+    const noteTags = getTagsForNote(note.id);
+    button.append(header, preview);
+
+    if (noteTags.length > 0) {
+      const tagsRow = document.createElement("div");
+      tagsRow.className = "note-tags";
+      noteTags.forEach((tag) => {
+        const tagChip = document.createElement("span");
+        tagChip.className = "tag-chip";
+        tagChip.textContent = tag;
+        tagsRow.appendChild(tagChip);
+      });
+      button.appendChild(tagsRow);
+    }
+
+    button.appendChild(date);
     button.addEventListener("click", () => {
       if (selectionMode) {
         toggleNoteSelection(note.id);
@@ -318,6 +384,7 @@ async function bulkDeleteSelectedNotes() {
     await Promise.all(
       [...selectedForDeletion].map((id) => apiRequest(`/notes/${id}`, { method: "DELETE" }))
     );
+    selectedForDeletion.forEach((id) => removeTagsForNote(id));
     showMessage("Notas eliminadas correctamente.", "success");
     toggleSelectionMode();
     await loadNotes();
@@ -393,6 +460,8 @@ async function performSave({ silent = false } = {}) {
       });
       selectedNoteId = data.note.id;
     }
+
+    setTagsForNote(selectedNoteId, parseTagsInput(noteTagsInput.value));
 
     showMessage(
       silent
@@ -534,6 +603,11 @@ noteEditor.addEventListener("input", () => {
   if (noteEditor.textContent.trim()) {
     setFieldValidity(noteEditor, true);
   }
+});
+
+noteTagsInput.addEventListener("input", () => {
+  markDirty();
+  scheduleAutosave();
 });
 
 document.addEventListener("selectionchange", () => {
