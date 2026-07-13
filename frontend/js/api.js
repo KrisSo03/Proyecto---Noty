@@ -25,6 +25,23 @@ function saveUser(user) {
   localStorage.setItem("noty_user", JSON.stringify(user));
 }
 
+const THEME_KEY = "noty_theme";
+
+function getTheme() {
+  return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+}
+
+function setTheme(theme) {
+  localStorage.setItem(THEME_KEY, theme);
+  applyTheme(theme);
+}
+
+applyTheme(getTheme());
+
 async function apiRequest(path, options = {}) {
   const headers = {
     "Content-Type": "application/json",

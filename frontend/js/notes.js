@@ -20,9 +20,23 @@ const selectedCountEl = document.querySelector("#selectedCount");
 const unsavedIndicator = document.querySelector("#unsavedIndicator");
 const noteStatsEl = document.querySelector("#noteStats");
 const noteTagsInput = document.querySelector("#noteTagsInput");
+const noteCountEl = document.querySelector("#noteCount");
+const themeToggleButton = document.querySelector("#themeToggleButton");
+const undoToast = document.querySelector("#undoToast");
+const undoToastText = document.querySelector("#undoToastText");
+const undoButton = document.querySelector("#undoButton");
 
 const AUTOSAVE_DELAY_MS = 2000;
+const UNDO_WINDOW_MS = 6000;
 const TOOLBAR_STATE_COMMANDS = ["bold", "italic", "insertUnorderedList", "insertOrderedList"];
+const TAG_COLOR_PALETTE = [
+  { bg: "#e8efff", text: "#1d4ed8" },
+  { bg: "#fef3c7", text: "#92400e" },
+  { bg: "#dcfce7", text: "#166534" },
+  { bg: "#fce7f3", text: "#9d174d" },
+  { bg: "#ede9fe", text: "#5b21b6" },
+  { bg: "#e0f2fe", text: "#075985" }
+];
 
 let notes = [];
 let selectedNoteId = null;
@@ -32,6 +46,7 @@ let selectedForDeletion = new Set();
 let isDirty = false;
 let isSaving = false;
 let autosaveTimer = null;
+let pendingDeletion = null;
 
 const FAVORITES_KEY = "noty_favorite_notes";
 const TAGS_KEY = "noty_note_tags";
@@ -81,6 +96,20 @@ function removeTagsForNote(noteId) {
   const all = getAllTags();
   delete all[noteId];
   localStorage.setItem(TAGS_KEY, JSON.stringify(all));
+}
+
+function hashString(value) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function getTagColor(tag) {
+  const index = hashString(tag.toLowerCase()) % TAG_COLOR_PALETTE.length;
+  return TAG_COLOR_PALETTE[index];
 }
 
 function getFavoriteIds() {
@@ -239,7 +268,12 @@ function setEditor(note) {
   renderNotesList();
 }
 
+function updateNoteCount() {
+  noteCountEl.textContent = `(${notes.length})`;
+}
+
 function renderNotesList() {
+  updateNoteCount();
   notesList.innerHTML = "";
 
   if (notes.length === 0) {
@@ -312,8 +346,11 @@ function renderNotesList() {
       tagsRow.className = "note-tags";
       noteTags.forEach((tag) => {
         const tagChip = document.createElement("span");
+        const color = getTagColor(tag);
         tagChip.className = "tag-chip";
         tagChip.textContent = tag;
+        tagChip.style.background = color.bg;
+        tagChip.style.color = color.text;
         tagsRow.appendChild(tagChip);
       });
       button.appendChild(tagsRow);
@@ -362,35 +399,77 @@ function updateBulkDeleteUI() {
   bulkDeleteButton.hidden = !selectionMode || count === 0;
 }
 
-async function bulkDeleteSelectedNotes() {
+function hideUndoToast() {
+  undoToast.hidden = true;
+}
+
+function showUndoToast(text) {
+  undoToastText.textContent = text;
+  undoToast.hidden = false;
+}
+
+function commitPendingDeletion() {
+  if (!pendingDeletion) {
+    return;
+  }
+
+  const { ids } = pendingDeletion;
+  clearTimeout(pendingDeletion.timeoutId);
+  pendingDeletion = null;
+  hideUndoToast();
+
+  Promise.all([...ids].map((id) => apiRequest(`/notes/${id}`, { method: "DELETE" })))
+    .then(() => {
+      ids.forEach((id) => removeTagsForNote(id));
+    })
+    .catch((error) => showMessage(error.message, "error"));
+}
+
+function undoPendingDeletion() {
+  if (!pendingDeletion) {
+    return;
+  }
+
+  clearTimeout(pendingDeletion.timeoutId);
+  notes = pendingDeletion.previousNotes;
+  const restoreId = pendingDeletion.previousSelectedNoteId;
+  pendingDeletion = null;
+  hideUndoToast();
+
+  const noteToShow = notes.find((note) => note.id === restoreId) || notes[0] || null;
+  setEditor(noteToShow);
+  showMessage("Eliminación deshecha.", "success");
+}
+
+function bulkDeleteSelectedNotes() {
   const count = selectedForDeletion.size;
 
   if (count === 0) {
     return;
   }
 
-  const confirmed = window.confirm(
-    count === 1
-      ? "Quieres eliminar 1 nota seleccionada?"
-      : `Quieres eliminar ${count} notas seleccionadas?`
-  );
-
-  if (!confirmed) {
-    return;
+  if (pendingDeletion) {
+    commitPendingDeletion();
   }
 
-  try {
-    showMessage("Eliminando notas...");
-    await Promise.all(
-      [...selectedForDeletion].map((id) => apiRequest(`/notes/${id}`, { method: "DELETE" }))
-    );
-    selectedForDeletion.forEach((id) => removeTagsForNote(id));
-    showMessage("Notas eliminadas correctamente.", "success");
-    toggleSelectionMode();
-    await loadNotes();
-  } catch (error) {
-    showMessage(error.message, "error");
+  const ids = new Set(selectedForDeletion);
+  const previousNotes = notes;
+  const previousSelectedNoteId = selectedNoteId;
+
+  notes = notes.filter((note) => !ids.has(note.id));
+
+  if (ids.has(previousSelectedNoteId)) {
+    setEditor(notes[0] || null);
+  } else {
+    renderNotesList();
   }
+
+  toggleSelectionMode();
+
+  const timeoutId = setTimeout(() => commitPendingDeletion(), UNDO_WINDOW_MS);
+  pendingDeletion = { ids, previousNotes, previousSelectedNoteId, timeoutId };
+
+  showUndoToast(count === 1 ? "1 nota eliminada." : `${count} notas eliminadas.`);
 }
 
 async function loadNotes({ preserveSelection = false } = {}) {
@@ -573,6 +652,19 @@ searchNotesInput.addEventListener("input", (event) => {
 selectModeButton.addEventListener("click", () => toggleSelectionMode());
 
 bulkDeleteButton.addEventListener("click", () => bulkDeleteSelectedNotes());
+
+undoButton.addEventListener("click", () => undoPendingDeletion());
+
+function updateThemeToggleIcon() {
+  themeToggleButton.textContent = getTheme() === "dark" ? "☀️" : "🌙";
+}
+
+themeToggleButton.addEventListener("click", () => {
+  setTheme(getTheme() === "dark" ? "light" : "dark");
+  updateThemeToggleIcon();
+});
+
+updateThemeToggleIcon();
 
 newNoteButton.addEventListener("click", () => {
   if (!confirmDiscardIfDirty()) {

@@ -11,10 +11,13 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <div>
-          <p class="eyebrow">Notas</p>
+          <p class="eyebrow">Notas <span id="noteCount" class="note-count"></span></p>
           <h1>Noty</h1>
         </div>
-        <button id="logoutButton" class="icon-button" type="button" title="Cerrar sesion">🚪 Salir</button>
+        <div class="header-actions">
+          <button id="themeToggleButton" class="icon-button" type="button" title="Cambiar a modo nocturno">🌙</button>
+          <button id="logoutButton" class="icon-button" type="button" title="Cerrar sesion">🚪 Salir</button>
+        </div>
       </div>
 
       <button id="newNoteButton" class="button primary full-width" type="button">📄 Nueva nota</button>
@@ -85,6 +88,11 @@
         <p id="message" class="message success" role="status">Dashboard v4 cargado.</p>
       </div>
     </main>
+  </div>
+
+  <div id="undoToast" class="undo-toast" role="status" hidden>
+    <span id="undoToastText"></span>
+    <button id="undoButton" class="button secondary" type="button">Deshacer</button>
   </div>
 
   <script src="js/api.js?v=1"></script>
