@@ -200,6 +200,23 @@ a {
   color: var(--muted);
 }
 
+.editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.note-stats {
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.editor-footer .message {
+  margin-top: 0;
+}
+
 .message {
   display: inline-flex;
   align-items: center;
@@ -488,6 +505,12 @@ a {
   color: #303743;
   background: #f6f7f9;
   border-color: var(--line);
+}
+
+.toolbar button.active {
+  color: #ffffff;
+  background: var(--primary);
+  border-color: var(--primary);
 }
 
 .note-editor {

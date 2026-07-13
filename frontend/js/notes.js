@@ -18,6 +18,10 @@ const selectModeButton = document.querySelector("#selectModeButton");
 const bulkDeleteButton = document.querySelector("#bulkDeleteButton");
 const selectedCountEl = document.querySelector("#selectedCount");
 const unsavedIndicator = document.querySelector("#unsavedIndicator");
+const noteStatsEl = document.querySelector("#noteStats");
+
+const AUTOSAVE_DELAY_MS = 2000;
+const TOOLBAR_STATE_COMMANDS = ["bold", "italic", "insertUnorderedList", "insertOrderedList"];
 
 let notes = [];
 let selectedNoteId = null;
@@ -25,6 +29,8 @@ let searchTerm = "";
 let selectionMode = false;
 let selectedForDeletion = new Set();
 let isDirty = false;
+let isSaving = false;
+let autosaveTimer = null;
 
 const FAVORITES_KEY = "noty_favorite_notes";
 
@@ -114,6 +120,60 @@ function markDirty() {
 function markClean() {
   isDirty = false;
   unsavedIndicator.hidden = true;
+  clearTimeout(autosaveTimer);
+}
+
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => {
+    performSave({ silent: true });
+  }, AUTOSAVE_DELAY_MS);
+}
+
+function confirmDiscardIfDirty() {
+  if (!isDirty) {
+    return true;
+  }
+
+  return window.confirm("Tienes cambios sin guardar. Quieres continuar sin guardarlos?");
+}
+
+function generateDefaultTitle() {
+  const now = new Date();
+  const stamp = now.toLocaleString("es", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  return `Nota sin titulo — ${stamp}`;
+}
+
+function updateNoteStats() {
+  const text = noteEditor.textContent.trim();
+  const words = text.length ? text.split(/\s+/).filter(Boolean).length : 0;
+  const chars = text.length;
+  noteStatsEl.textContent = `${words} ${words === 1 ? "palabra" : "palabras"} · ${chars} ${chars === 1 ? "caracter" : "caracteres"}`;
+}
+
+function updateToolbarState() {
+  toolbar.querySelectorAll("button").forEach((btn) => btn.classList.remove("active"));
+
+  TOOLBAR_STATE_COMMANDS.forEach((command) => {
+    if (document.queryCommandState(command)) {
+      const btn = toolbar.querySelector(`button[data-command="${command}"]`);
+      if (btn) {
+        btn.classList.add("active");
+      }
+    }
+  });
+
+  const activeBlock = (document.queryCommandValue("formatBlock") || "p").toLowerCase();
+  const blockButton = toolbar.querySelector(`button[data-command="formatBlock"][data-value="${activeBlock}"]`);
+
+  if (blockButton) {
+    blockButton.classList.add("active");
+  }
 }
 
 function setEditor(note) {
@@ -123,6 +183,7 @@ function setEditor(note) {
   setFieldValidity(noteTitle, true);
   setFieldValidity(noteEditor, true);
   updateEditorPlaceholderState();
+  updateNoteStats();
   markClean();
   renderNotesList();
 }
@@ -196,7 +257,7 @@ function renderNotesList() {
     button.addEventListener("click", () => {
       if (selectionMode) {
         toggleNoteSelection(note.id);
-      } else {
+      } else if (note.id !== selectedNoteId && confirmDiscardIfDirty()) {
         setEditor(note);
       }
     });
@@ -265,34 +326,59 @@ async function bulkDeleteSelectedNotes() {
   }
 }
 
-async function loadNotes() {
+async function loadNotes({ preserveSelection = false } = {}) {
   try {
     notes = await apiRequest("/notes");
-    setEditor(notes[0] || null);
+
+    if (preserveSelection && selectedNoteId && notes.some((note) => note.id === selectedNoteId)) {
+      renderNotesList();
+    } else {
+      setEditor(notes[0] || null);
+    }
   } catch (error) {
     showMessage(error.message, "error");
   }
 }
 
-async function saveNote() {
-  const title = noteTitle.value.trim();
-  const content = noteEditor.innerHTML.trim();
-  const hasContent = noteEditor.textContent.trim().length > 0;
-
-  setFieldValidity(noteTitle, Boolean(title));
-  setFieldValidity(noteEditor, hasContent);
-
-  if (!title || !hasContent) {
-    showMessage("El titulo y el contenido son obligatorios.", "error");
-    (title ? noteEditor : noteTitle).focus();
+async function performSave({ silent = false } = {}) {
+  if (isSaving) {
     return;
   }
 
+  let title = noteTitle.value.trim();
+  const hasContent = noteEditor.textContent.trim().length > 0;
+
+  if (!hasContent) {
+    if (!silent) {
+      setFieldValidity(noteEditor, false);
+      showMessage("Escribe contenido antes de guardar.", "error");
+      noteEditor.focus();
+    }
+    return;
+  }
+
+  if (!title) {
+    title = generateDefaultTitle();
+    noteTitle.value = title;
+  }
+
+  setFieldValidity(noteTitle, true);
+  setFieldValidity(noteEditor, true);
+
+  const content = noteEditor.innerHTML.trim();
   const wasCreating = !selectedNoteId;
-  const originalLabel = saveNoteButton.textContent;
-  saveNoteButton.disabled = true;
-  saveNoteButton.textContent = "⏳ Guardando...";
-  showMessage("Guardando nota...");
+  let originalLabel;
+
+  isSaving = true;
+  clearTimeout(autosaveTimer);
+
+  if (!silent) {
+    originalLabel = saveNoteButton.textContent;
+    saveNoteButton.disabled = true;
+    saveNoteButton.textContent = "⏳ Guardando...";
+  }
+
+  showMessage(silent ? "💾 Guardando automáticamente..." : "Guardando nota...");
 
   try {
     if (selectedNoteId) {
@@ -300,29 +386,41 @@ async function saveNote() {
         method: "PUT",
         body: JSON.stringify({ title, content })
       });
-      showMessage("✅ Nota actualizada correctamente.", "success");
     } else {
       const data = await apiRequest("/notes", {
         method: "POST",
         body: JSON.stringify({ title, content })
       });
       selectedNoteId = data.note.id;
-      showMessage(wasCreating ? "✅ Nota creada correctamente." : "✅ Nota actualizada correctamente.", "success");
     }
 
+    showMessage(
+      silent
+        ? "💾 Guardado automáticamente."
+        : wasCreating ? "✅ Nota creada correctamente." : "✅ Nota actualizada correctamente.",
+      "success"
+    );
     markClean();
-    await loadNotes();
+    await loadNotes({ preserveSelection: true });
   } catch (error) {
     showMessage(error.message, "error");
   } finally {
-    saveNoteButton.disabled = false;
-    saveNoteButton.textContent = originalLabel;
+    isSaving = false;
+    if (!silent) {
+      saveNoteButton.disabled = false;
+      saveNoteButton.textContent = originalLabel;
+    }
   }
+}
+
+function saveNote() {
+  return performSave({ silent: false });
 }
 
 function applyFormat(command, value = null) {
   document.execCommand(command, false, value);
   noteEditor.focus();
+  updateToolbarState();
 }
 
 // ==========================================
@@ -408,6 +506,9 @@ selectModeButton.addEventListener("click", () => toggleSelectionMode());
 bulkDeleteButton.addEventListener("click", () => bulkDeleteSelectedNotes());
 
 newNoteButton.addEventListener("click", () => {
+  if (!confirmDiscardIfDirty()) {
+    return;
+  }
   setEditor(null);
   noteTitle.focus();
 });
@@ -419,6 +520,7 @@ logoutButton.addEventListener("click", () => {
 
 noteTitle.addEventListener("input", () => {
   markDirty();
+  scheduleAutosave();
   if (noteTitle.value.trim()) {
     setFieldValidity(noteTitle, true);
   }
@@ -426,9 +528,17 @@ noteTitle.addEventListener("input", () => {
 
 noteEditor.addEventListener("input", () => {
   markDirty();
+  scheduleAutosave();
   updateEditorPlaceholderState();
+  updateNoteStats();
   if (noteEditor.textContent.trim()) {
     setFieldValidity(noteEditor, true);
+  }
+});
+
+document.addEventListener("selectionchange", () => {
+  if (document.activeElement === noteEditor) {
+    updateToolbarState();
   }
 });
 
@@ -438,6 +548,13 @@ document.addEventListener("keydown", (event) => {
   if (isSaveShortcut) {
     event.preventDefault();
     saveNote();
+  }
+});
+
+window.addEventListener("beforeunload", (event) => {
+  if (isDirty) {
+    event.preventDefault();
+    event.returnValue = "";
   }
 });
 
